@@ -1,6 +1,6 @@
 /*
  *  Dissident File System (DFS)
- *  Copyright (C) 2016  Aneesh Neelam <aneelam@ucsc.edu/neelam.aneesh@gmail.com>
+ *  Copyright (C) 2016  Aneesh Neelam <neelam.aneesh@gmail.com / aneelam@ucsc.edu>
  *
  *  This file is part of the Dissident File System (DFS).
  *
