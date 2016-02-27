@@ -1,13 +1,23 @@
 /*
-  FUSE: Filesystem in Userspace
-  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
-  Copyright (C) 2011       Sebastian Pipping <sebastian@pipping.org>
+ *  Dissident File System (DFS)
+ *  Copyright (C) 2016  Aneesh Neelam <aneelam@ucsc.edu/neelam.aneesh@gmail.com>
+ *
+ *  This file is part of the Dissident File System (DFS).
+ *
+ *  DFS is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  DFS is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with DFS.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-  This program can be distributed under the terms of the GNU GPL.
-  See the file COPYING.
-
-  gcc -Wall fusexmp.c `pkg-config fuse --cflags --libs` -o fusexmp
-*/
 
 #define FUSE_USE_VERSION 26
 
@@ -33,7 +43,7 @@
 #include <sys/xattr.h>
 #endif
 
-static int xmp_getattr(const char *path, struct stat *stbuf)
+static int dfs_getattr(const char *path, struct stat *stbuf)
 {
 	int res;
 
@@ -44,7 +54,7 @@ static int xmp_getattr(const char *path, struct stat *stbuf)
 	return 0;
 }
 
-static int xmp_access(const char *path, int mask)
+static int dfs_access(const char *path, int mask)
 {
 	int res;
 
@@ -55,7 +65,7 @@ static int xmp_access(const char *path, int mask)
 	return 0;
 }
 
-static int xmp_readlink(const char *path, char *buf, size_t size)
+static int dfs_readlink(const char *path, char *buf, size_t size)
 {
 	int res;
 
@@ -68,7 +78,7 @@ static int xmp_readlink(const char *path, char *buf, size_t size)
 }
 
 
-static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+static int dfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		       off_t offset, struct fuse_file_info *fi)
 {
 	DIR *dp;
@@ -94,7 +104,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	return 0;
 }
 
-static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
+static int dfs_mknod(const char *path, mode_t mode, dev_t rdev)
 {
 	int res;
 
@@ -114,7 +124,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
 	return 0;
 }
 
-static int xmp_mkdir(const char *path, mode_t mode)
+static int dfs_mkdir(const char *path, mode_t mode)
 {
 	int res;
 
@@ -125,7 +135,7 @@ static int xmp_mkdir(const char *path, mode_t mode)
 	return 0;
 }
 
-static int xmp_unlink(const char *path)
+static int dfs_unlink(const char *path)
 {
 	int res;
 
@@ -136,7 +146,7 @@ static int xmp_unlink(const char *path)
 	return 0;
 }
 
-static int xmp_rmdir(const char *path)
+static int dfs_rmdir(const char *path)
 {
 	int res;
 
@@ -147,7 +157,7 @@ static int xmp_rmdir(const char *path)
 	return 0;
 }
 
-static int xmp_symlink(const char *from, const char *to)
+static int dfs_symlink(const char *from, const char *to)
 {
 	int res;
 
@@ -158,7 +168,7 @@ static int xmp_symlink(const char *from, const char *to)
 	return 0;
 }
 
-static int xmp_rename(const char *from, const char *to)
+static int dfs_rename(const char *from, const char *to)
 {
 	int res;
 
@@ -169,7 +179,7 @@ static int xmp_rename(const char *from, const char *to)
 	return 0;
 }
 
-static int xmp_link(const char *from, const char *to)
+static int dfs_link(const char *from, const char *to)
 {
 	int res;
 
@@ -180,7 +190,7 @@ static int xmp_link(const char *from, const char *to)
 	return 0;
 }
 
-static int xmp_chmod(const char *path, mode_t mode)
+static int dfs_chmod(const char *path, mode_t mode)
 {
 	int res;
 
@@ -191,7 +201,7 @@ static int xmp_chmod(const char *path, mode_t mode)
 	return 0;
 }
 
-static int xmp_chown(const char *path, uid_t uid, gid_t gid)
+static int dfs_chown(const char *path, uid_t uid, gid_t gid)
 {
 	int res;
 
@@ -202,7 +212,7 @@ static int xmp_chown(const char *path, uid_t uid, gid_t gid)
 	return 0;
 }
 
-static int xmp_truncate(const char *path, off_t size)
+static int dfs_truncate(const char *path, off_t size)
 {
 	int res;
 
@@ -214,7 +224,7 @@ static int xmp_truncate(const char *path, off_t size)
 }
 
 #ifdef HAVE_UTIMENSAT
-static int xmp_utimens(const char *path, const struct timespec ts[2])
+static int dfs_utimens(const char *path, const struct timespec ts[2])
 {
 	int res;
 
@@ -227,7 +237,7 @@ static int xmp_utimens(const char *path, const struct timespec ts[2])
 }
 #endif
 
-static int xmp_open(const char *path, struct fuse_file_info *fi)
+static int dfs_open(const char *path, struct fuse_file_info *fi)
 {
 	int res;
 
@@ -239,7 +249,7 @@ static int xmp_open(const char *path, struct fuse_file_info *fi)
 	return 0;
 }
 
-static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
+static int dfs_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
 	int fd;
@@ -258,7 +268,7 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
 	return res;
 }
 
-static int xmp_write(const char *path, const char *buf, size_t size,
+static int dfs_write(const char *path, const char *buf, size_t size,
 		     off_t offset, struct fuse_file_info *fi)
 {
 	int fd;
@@ -277,7 +287,7 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 	return res;
 }
 
-static int xmp_statfs(const char *path, struct statvfs *stbuf)
+static int dfs_statfs(const char *path, struct statvfs *stbuf)
 {
 	int res;
 
@@ -288,7 +298,7 @@ static int xmp_statfs(const char *path, struct statvfs *stbuf)
 	return 0;
 }
 
-static int xmp_release(const char *path, struct fuse_file_info *fi)
+static int dfs_release(const char *path, struct fuse_file_info *fi)
 {
 	/* Just a stub.	 This method is optional and can safely be left
 	   unimplemented */
@@ -298,7 +308,7 @@ static int xmp_release(const char *path, struct fuse_file_info *fi)
 	return 0;
 }
 
-static int xmp_fsync(const char *path, int isdatasync,
+static int dfs_fsync(const char *path, int isdatasync,
 		     struct fuse_file_info *fi)
 {
 	/* Just a stub.	 This method is optional and can safely be left
@@ -311,7 +321,7 @@ static int xmp_fsync(const char *path, int isdatasync,
 }
 
 #ifdef HAVE_POSIX_FALLOCATE
-static int xmp_fallocate(const char *path, int mode,
+static int dfs_fallocate(const char *path, int mode,
 			off_t offset, off_t length, struct fuse_file_info *fi)
 {
 	int fd;
@@ -335,7 +345,7 @@ static int xmp_fallocate(const char *path, int mode,
 
 #ifdef HAVE_SETXATTR
 /* xattr operations are optional and can safely be left unimplemented */
-static int xmp_setxattr(const char *path, const char *name, const char *value,
+static int dfs_setxattr(const char *path, const char *name, const char *value,
 			size_t size, int flags)
 {
 	int res = lsetxattr(path, name, value, size, flags);
@@ -344,7 +354,7 @@ static int xmp_setxattr(const char *path, const char *name, const char *value,
 	return 0;
 }
 
-static int xmp_getxattr(const char *path, const char *name, char *value,
+static int dfs_getxattr(const char *path, const char *name, char *value,
 			size_t size)
 {
 	int res = lgetxattr(path, name, value, size);
@@ -353,7 +363,7 @@ static int xmp_getxattr(const char *path, const char *name, char *value,
 	return res;
 }
 
-static int xmp_listxattr(const char *path, char *list, size_t size)
+static int dfs_listxattr(const char *path, char *list, size_t size)
 {
 	int res = llistxattr(path, list, size);
 	if (res == -1)
@@ -361,7 +371,7 @@ static int xmp_listxattr(const char *path, char *list, size_t size)
 	return res;
 }
 
-static int xmp_removexattr(const char *path, const char *name)
+static int dfs_removexattr(const char *path, const char *name)
 {
 	int res = lremovexattr(path, name);
 	if (res == -1)
@@ -370,43 +380,43 @@ static int xmp_removexattr(const char *path, const char *name)
 }
 #endif /* HAVE_SETXATTR */
 
-static struct fuse_operations xmp_oper = {
-	.getattr	= xmp_getattr,
-	.access		= xmp_access,
-	.readlink	= xmp_readlink,
-	.readdir	= xmp_readdir,
-	.mknod		= xmp_mknod,
-	.mkdir		= xmp_mkdir,
-	.symlink	= xmp_symlink,
-	.unlink		= xmp_unlink,
-	.rmdir		= xmp_rmdir,
-	.rename		= xmp_rename,
-	.link		= xmp_link,
-	.chmod		= xmp_chmod,
-	.chown		= xmp_chown,
-	.truncate	= xmp_truncate,
+static struct fuse_operations dfs_oper = {
+	.getattr	= dfs_getattr,
+	.access		= dfs_access,
+	.readlink	= dfs_readlink,
+	.readdir	= dfs_readdir,
+	.mknod		= dfs_mknod,
+	.mkdir		= dfs_mkdir,
+	.symlink	= dfs_symlink,
+	.unlink		= dfs_unlink,
+	.rmdir		= dfs_rmdir,
+	.rename		= dfs_rename,
+	.link		= dfs_link,
+	.chmod		= dfs_chmod,
+	.chown		= dfs_chown,
+	.truncate	= dfs_truncate,
 #ifdef HAVE_UTIMENSAT
-	.utimens	= xmp_utimens,
+	.utimens	= dfs_utimens,
 #endif
-	.open		= xmp_open,
-	.read		= xmp_read,
-	.write		= xmp_write,
-	.statfs		= xmp_statfs,
-	.release	= xmp_release,
-	.fsync		= xmp_fsync,
+	.open		= dfs_open,
+	.read		= dfs_read,
+	.write		= dfs_write,
+	.statfs		= dfs_statfs,
+	.release	= dfs_release,
+	.fsync		= dfs_fsync,
 #ifdef HAVE_POSIX_FALLOCATE
-	.fallocate	= xmp_fallocate,
+	.fallocate	= dfs_fallocate,
 #endif
 #ifdef HAVE_SETXATTR
-	.setxattr	= xmp_setxattr,
-	.getxattr	= xmp_getxattr,
-	.listxattr	= xmp_listxattr,
-	.removexattr	= xmp_removexattr,
+	.setxattr	= dfs_setxattr,
+	.getxattr	= dfs_getxattr,
+	.listxattr	= dfs_listxattr,
+	.removexattr	= dfs_removexattr,
 #endif
 };
 
 int main(int argc, char *argv[])
 {
 	umask(0);
-	return fuse_main(argc, argv, &xmp_oper, NULL);
+	return fuse_main(argc, argv, &dfs_oper, NULL);
 }
