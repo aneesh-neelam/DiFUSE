@@ -48,11 +48,36 @@
 
 // Helper functions and data structures for Dissident File System
 
-#define DUMMY_FILES 3
+#define DUMMY_FILES 2 // N value
 
-unsigned int dfs_key = 0;
+char dfs_key[DUMMY_FILES + 1];
 
-int dfs_xor(char **srcs, size_t size) {
+int dfs_random_number_generator() {
+  int r;
+
+  r = rand() % DUMMY_FILES;
+
+  return r;
+}
+
+int dfs_get_paths(char **paths, const char *path) {
+  int path_length;
+  int dummy_index;
+
+  path_length = strlen(path);
+  paths[0] = (char*) malloc(path_length + 1);
+  strncpy(paths[0], path, path_length);
+
+  for (dummy_index = 1; dummy_index < DUMMY_FILES; ++dummy_index) {
+    paths[dummy_index] = (char*) malloc(path_length + DUMMY_FILES + 1);
+    strncpy(paths[dummy_index], path, path_length);
+    strncat(path[dummy_index], dfs_key, DUMMY_FILES);
+  }
+
+  return 0;
+}
+
+int dfs_xor_combine(char **srcs, size_t size) {
   int dummy_index;
   int ptr_index;
 
@@ -65,10 +90,33 @@ int dfs_xor(char **srcs, size_t size) {
   return 0;
 }
 
-void dfs_usage() {
-  fprintf(stderr, "Usage: difuse [mount_point] [dfs_key]\n");
+int dfs_xor_split(char **dest, const char *src, size_t size) {
+  int dummy_index;
+  int ptr_index;
+  int true_index;
+  int value;
+
+  true_index = dfs_random_number_generator();
+  memcpy(dest[true_index], src, size);
+
+  value = 0;
+  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
+    if (dummy_index != true_index) {
+      for (ptr_index = 0; ptr_index < size; ++ptr_index) {
+         dest[dummy_index] = src[ptr_index] ^ src[ptr_index];
+      }
+    }
+  }
+
+  return 0;
 }
 
+void dfs_usage() {
+  fprintf(stderr, "Usage: difuse [mount_point] [dfs_key of %d digits]\n", DUMMY_FILES);
+}
+
+
+// FUSE operations functions
 
 static int dfs_getattr(const char *path, struct stat *stbuf) {
  	int res;
@@ -261,11 +309,13 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
 	int results[DUMMY_FILES];
   int dummy_index;
   char *dummies[DUMMY_FILES] = {NULL};
+  char *paths[DUMMY_FILES] = {NULL};
 
   (void) fi;
 
+  dfs_get_paths(paths, path);
   for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
-    fds[dummy_index] = open(path, O_RDONLY);
+    fds[dummy_index] = open(paths[dummy_index], O_RDONLY);
     if (fds[dummy_index] == -1) {
   		return -errno;
     }
@@ -275,7 +325,7 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
     results[dummy_index] = pread(fds[dummy_index], dummies[dummy_index], size, offset);
   }
 
-  dfs_xor(dummies, size);
+  dfs_xor_combine(dummies, size);
   memcpy(buf, dummies[0], size);
 
   for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
@@ -290,20 +340,35 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
 }
 
 static int dfs_write(const char *path, const char *buf, size_t size,off_t offset, struct fuse_file_info *fi) {
-	int fd;
-	int res;
+  int fds[DUMMY_FILES];
+	int results[DUMMY_FILES];
+  int dummy_index;
+  char *dummies[DUMMY_FILES] = {NULL};
+  char *paths[DUMMY_FILES] = {NULL};
 
 	(void) fi;
-	fd = open(path, O_WRONLY);
-	if (fd == -1)
-		return -errno;
 
-	res = pwrite(fd, buf, size, offset);
-	if (res == -1)
-		res = -errno;
+  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
+    dummies[dummy_index] = (char*) malloc(size);
+  }
 
-	close(fd);
-	return res;
+  dfs_xor_split(dummies, buf, size);
+  dfs_get_paths(paths, path);
+  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
+    fds[dummy_index] = open(paths[dummy_index], O_WRONLY);
+    if (fds[dummy_index] == -1) {
+  		return -errno;
+    }
+
+    results[dummy_index] = pwrite(fds[dummy_index], dummies[dummy_index], size, offset);
+    if (results[dummy_index] == -1) {
+  		return -errno;
+    }
+
+    close(fds[dummy_index]);
+  }
+
+	return results[0];
 }
 
 static int dfs_statfs(const char *path, struct statvfs *stbuf)
@@ -318,8 +383,7 @@ static int dfs_statfs(const char *path, struct statvfs *stbuf)
 }
 
 static int dfs_release(const char *path, struct fuse_file_info *fi) {
-	/* Just a stub.	 This method is optional and can safely be left
-	   unimplemented */
+	// Just a stub.	 This method is optional and can safely be left unimplemented.
 
 	(void) path;
 	(void) fi;
@@ -327,8 +391,7 @@ static int dfs_release(const char *path, struct fuse_file_info *fi) {
 }
 
 static int dfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi) {
-	/* Just a stub.	 This method is optional and can safely be left
-	   unimplemented */
+	// Just a stub.	 This method is optional and can safely be left unimplemented.
 
 	(void) path;
 	(void) isdatasync;
@@ -424,15 +487,21 @@ static struct fuse_operations dfs_oper = {
 };
 
 int main(int argc, char *argv[]) {
-	umask(0);
+  umask(0);
 
   if (argc < 3) {
     dfs_usage();
     exit(1);
   }
+  else if (strlen(argv[2]) != DUMMY_FILES) {
+    dfs_usage();
+    exit(1);
+  }
   else {
-    dfs_key = atoi(argv[2]);
+    strncpy(dfs_key, argv[2], DUMMY_FILES);
+    fprintf(stdout, "Using key: %s\n", dfs_key);
     argc = argc - 1;
+
 	  return fuse_main(argc, argv, &dfs_oper, NULL);
   }
 }
