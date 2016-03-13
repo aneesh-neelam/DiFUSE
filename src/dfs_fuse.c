@@ -41,6 +41,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <linux/limits.h>
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
 #endif
@@ -48,30 +49,27 @@
 
 // Helper functions and data structures for Dissident File System
 
-#define DUMMY_FILES 2 // N value
+#define DUMMY_FILES 3 // N value
 
 char dfs_key[DUMMY_FILES + 1];
 
 int dfs_random_number_generator() {
   int r;
 
-  r = rand() % DUMMY_FILES;
+  // r = rand() % DUMMY_FILES;
+  r = DUMMY_FILES - 1; // For simplicity, will change later.
 
   return r;
 }
 
-int dfs_get_paths(char **paths, const char *path) {
-  int path_length;
+int dfs_get_paths(char paths[DUMMY_FILES][PATH_MAX], const char *path) {
   int dummy_index;
 
-  path_length = strlen(path);
-  paths[0] = (char*) malloc(path_length + 1);
-  strncpy(paths[0], path, path_length);
+  strcpy(paths[0], path);
 
   for (dummy_index = 1; dummy_index < DUMMY_FILES; ++dummy_index) {
-    paths[dummy_index] = (char*) malloc(path_length + DUMMY_FILES + 1);
-    strncpy(paths[dummy_index], path, path_length);
-    strncat(path[dummy_index], dfs_key, DUMMY_FILES);
+    strcpy(paths[dummy_index], path);
+    // strcat(paths[dummy_index], dfs_key);
   }
 
   return 0;
@@ -94,16 +92,14 @@ int dfs_xor_split(char **dest, const char *src, size_t size) {
   int dummy_index;
   int ptr_index;
   int true_index;
-  int value;
 
   true_index = dfs_random_number_generator();
   memcpy(dest[true_index], src, size);
 
-  value = 0;
   for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
     if (dummy_index != true_index) {
       for (ptr_index = 0; ptr_index < size; ++ptr_index) {
-         dest[dummy_index] = src[ptr_index] ^ src[ptr_index];
+         dest[dummy_index][ptr_index] = src[ptr_index] ^ src[ptr_index];
       }
     }
   }
@@ -309,7 +305,7 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
 	int results[DUMMY_FILES];
   int dummy_index;
   char *dummies[DUMMY_FILES] = {NULL};
-  char *paths[DUMMY_FILES] = {NULL};
+  char paths[DUMMY_FILES][PATH_MAX];
 
   (void) fi;
 
@@ -344,7 +340,7 @@ static int dfs_write(const char *path, const char *buf, size_t size,off_t offset
 	int results[DUMMY_FILES];
   int dummy_index;
   char *dummies[DUMMY_FILES] = {NULL};
-  char *paths[DUMMY_FILES] = {NULL};
+  char paths[DUMMY_FILES][PATH_MAX];
 
 	(void) fi;
 
@@ -366,6 +362,7 @@ static int dfs_write(const char *path, const char *buf, size_t size,off_t offset
     }
 
     close(fds[dummy_index]);
+    free(dummies[dummy_index]);
   }
 
 	return results[0];
