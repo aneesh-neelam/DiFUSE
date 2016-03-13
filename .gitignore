@@ -27,7 +27,7 @@
 *.i*86
 *.x86_64
 *.hex
-bin/fusedfs
+bin/difuse
 
 # Debug files
 *.dSYM/
