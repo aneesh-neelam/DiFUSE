@@ -31,3 +31,8 @@ bin/difuse
 
 # Debug files
 *.dSYM/
+
+# LATEX
+*.aux
+*.log
+*.synctex.gz
