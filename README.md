@@ -1,17 +1,16 @@
-# DFS-FUSE
-Dissident FIle System - FUSE
+# DiFUSE
+The Dissident File System, implemented using the FUSE C API.
+
+#### Instructions for Installation:
+###### Install dependencies
+
+    # apt-get install libfuse2 libfuse-dev
+
+###### Build DiFUSE
+
+    $ make
 
 
-### Obtain dependencies:
+###### Delete old builds
 
-  # apt-get install libfuse2 libfuse-dev
-
-
-### Build fusedfs
-
-  $ Make all
-
-
-### Delete old builds
-
-  $ Make clean
+    $ make clean
