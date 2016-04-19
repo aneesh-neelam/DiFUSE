@@ -1,4 +1,4 @@
-#sources
+# C sources
 *.c text
 *.cc text
 *.cxx text
@@ -8,6 +8,12 @@
 *.h text
 *.h++ text
 *.hh text
+
+# Latex files
+*.tex text
+*.sty text
+*.bib text
+*.bst text
 
 # Compiled Object files
 *.slo binary
@@ -34,3 +40,6 @@
 *.exe binary
 *.out binary
 *.app binary
+
+# Documents
+*.pdf binary
