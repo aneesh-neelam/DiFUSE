@@ -31,6 +31,7 @@
 #endif
 
 #include <fuse.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -41,70 +42,38 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <linux/limits.h>
+
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
 #endif
 
 
-// Helper functions and data structures for Dissident File System
-
-#define DUMMY_FILES 3 // N value
-
+// Helper functions and data structures for the Dissident File System
+#define DUMMY_FILES 3
 char dfs_key[DUMMY_FILES + 1];
 
-int dfs_random_number_generator() {
-  int r;
+typedef struct RANDOM {
+  int last;
+  char data[512];
+} RANDOM;
+RANDOM csprn = {.last = 512};
 
-  // r = rand() % DUMMY_FILES;
-  r = DUMMY_FILES - 1; // For simplicity, will change later.
-
-  return r;
+int generate_csprn() {
+  if (csprn.last >= 512) {
+    int random_file = open("/dev/random", O_RDONLY);
+    read(random_file, csprn.data, 512);
+    close(random_file);
+    csprn.last = 0;
+    return csprn.data[csprn.last];
+  }
+  else {
+    csprn.last++;
+    return csprn.data[csprn.last];
+  }
 }
 
-int dfs_get_paths(char paths[DUMMY_FILES][PATH_MAX], const char *path) {
-  int dummy_index;
+int dfs_xor(char **srcs, size_t size) {
 
-  strcpy(paths[0], path);
-
-  for (dummy_index = 1; dummy_index < DUMMY_FILES; ++dummy_index) {
-    strcpy(paths[dummy_index], path);
-    // strcat(paths[dummy_index], dfs_key);
-  }
-
-  return 0;
-}
-
-int dfs_xor_combine(char **srcs, size_t size) {
-  int dummy_index;
-  int ptr_index;
-
-  for (dummy_index = 1; dummy_index < DUMMY_FILES; ++dummy_index) {
-    for (ptr_index = 0; ptr_index < size; ++ptr_index) {
-       srcs[0][ptr_index] ^= srcs[dummy_index][ptr_index];
-    }
-  }
-
-  return 0;
-}
-
-int dfs_xor_split(char **dest, const char *src, size_t size) {
-  int dummy_index;
-  int ptr_index;
-  int true_index;
-
-  true_index = dfs_random_number_generator();
-  memcpy(dest[true_index], src, size);
-
-  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
-    if (dummy_index != true_index) {
-      for (ptr_index = 0; ptr_index < size; ++ptr_index) {
-         dest[dummy_index][ptr_index] = src[ptr_index] ^ src[ptr_index];
-      }
-    }
-  }
-
-  return 0;
 }
 
 void dfs_usage() {
@@ -301,71 +270,11 @@ static int dfs_open(const char *path, struct fuse_file_info *fi) {
 }
 
 static int dfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-	int fds[DUMMY_FILES];
-	int results[DUMMY_FILES];
-  int dummy_index;
-  char *dummies[DUMMY_FILES] = {NULL};
-  char paths[DUMMY_FILES][PATH_MAX];
 
-  (void) fi;
-
-  dfs_get_paths(paths, path);
-  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
-    fds[dummy_index] = open(paths[dummy_index], O_RDONLY);
-    if (fds[dummy_index] == -1) {
-  		return -errno;
-    }
-
-    dummies[dummy_index] = (char*) malloc(size);
-
-    results[dummy_index] = pread(fds[dummy_index], dummies[dummy_index], size, offset);
-  }
-
-  dfs_xor_combine(dummies, size);
-  memcpy(buf, dummies[0], size);
-
-  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
-    close(fds[dummy_index]);
-    free(dummies[dummy_index]);
-    if (results[dummy_index] == -1) {
-  		results[dummy_index] = -errno;
-    }
-  }
-
-	return results[0];
 }
 
 static int dfs_write(const char *path, const char *buf, size_t size,off_t offset, struct fuse_file_info *fi) {
-  int fds[DUMMY_FILES];
-	int results[DUMMY_FILES];
-  int dummy_index;
-  char *dummies[DUMMY_FILES] = {NULL};
-  char paths[DUMMY_FILES][PATH_MAX];
 
-	(void) fi;
-
-  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
-    dummies[dummy_index] = (char*) malloc(size);
-  }
-
-  dfs_xor_split(dummies, buf, size);
-  dfs_get_paths(paths, path);
-  for (dummy_index = 0; dummy_index < DUMMY_FILES; ++dummy_index) {
-    fds[dummy_index] = open(paths[dummy_index], O_WRONLY);
-    if (fds[dummy_index] == -1) {
-  		return -errno;
-    }
-
-    results[dummy_index] = pwrite(fds[dummy_index], dummies[dummy_index], size, offset);
-    if (results[dummy_index] == -1) {
-  		return -errno;
-    }
-
-    close(fds[dummy_index]);
-    free(dummies[dummy_index]);
-  }
-
-	return results[0];
 }
 
 static int dfs_statfs(const char *path, struct statvfs *stbuf)
