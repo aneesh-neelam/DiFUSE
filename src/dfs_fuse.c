@@ -36,13 +36,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <libgen.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sys/time.h>
 
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
