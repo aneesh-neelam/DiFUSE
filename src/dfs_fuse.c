@@ -31,6 +31,7 @@
 #endif
 
 #include <fuse.h>
+#include <db.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -49,27 +50,46 @@
 
 
 // Helper functions and data structures for the Dissident File System
-#define DUMMY_FILES 3
-char dfs_key[DUMMY_FILES + 1];
 
+// File system state
+struct dfs_state {
+    char *passphrase;
+    char *root_directory;
+    char *mount_point;
+    char *db_file;
+    char *innocent_file;
+};
+
+// Easy way to access file system state
+#define DFS_DATA ((struct dfs_state *) fuse_get_context()->private_data)
+
+// Random number store
 typedef struct RANDOM {
-  int last;
-  char data[512];
+    int last;
+    char *data;
 } RANDOM;
-RANDOM csprn = {.last = 512};
+RANDOM csprn = {.last = 600};
 
+// Generates random numbers
 int generate_csprn() {
-  if (csprn.last >= 512) {
-    int random_file = open("/dev/random", O_RDONLY);
-    read(random_file, csprn.data, 512);
-    close(random_file);
-    csprn.last = 0;
-    return csprn.data[csprn.last];
-  }
-  else {
-    csprn.last++;
-    return csprn.data[csprn.last];
-  }
+    if (csprn.last > 512) {
+        if (csprn.data == NULL) {
+            csprn.data = (char *) malloc(512);
+        }
+
+        int random_file = open("/dev/random", O_RDONLY);
+        read(random_file, csprn.data, 512);
+        close(random_file);
+
+        csprn.last = 0;
+
+        return csprn.data[csprn.last];
+    }
+    else {
+        csprn.last++;
+
+        return csprn.data[csprn.last];
+    }
 }
 
 int dfs_xor(char **srcs, size_t size) {
@@ -77,337 +97,356 @@ int dfs_xor(char **srcs, size_t size) {
 }
 
 void dfs_usage() {
-  fprintf(stderr, "Usage: difuse [mount_point] [dfs_key of %d digits]\n", DUMMY_FILES);
+    fprintf(stderr, "Usage: difuse [passphrase] [root_directory] [mount_point] [db_filename] [innocent_filepath\n\n");
 }
 
 
 // FUSE operations functions
 
 static int dfs_getattr(const char *path, struct stat *stbuf) {
- 	int res;
+    int res;
 
- 	res = lstat(path, stbuf);
- 	if (res == -1)
- 		return -errno;
+    res = lstat(path, stbuf);
+    if (res == -1)
+        return -errno;
 
- 	return 0;
+    return 0;
 }
 
 static int dfs_access(const char *path, int mask) {
-	int res;
+    int res;
 
-	res = access(path, mask);
-	if (res == -1)
-		return -errno;
+    res = access(path, mask);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_readlink(const char *path, char *buf, size_t size) {
-	int res;
+    int res;
 
-	res = readlink(path, buf, size - 1);
-	if (res == -1)
-		return -errno;
+    res = readlink(path, buf, size - 1);
+    if (res == -1)
+        return -errno;
 
-	buf[res] = '\0';
-	return 0;
+    buf[res] = '\0';
+    return 0;
 }
 
 static int dfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
-	DIR *dp;
-	struct dirent *de;
+    DIR *dp;
+    struct dirent *de;
 
-	(void) offset;
-	(void) fi;
+    (void) offset;
+    (void) fi;
 
-	dp = opendir(path);
-	if (dp == NULL)
-		return -errno;
+    dp = opendir(path);
+    if (dp == NULL)
+        return -errno;
 
-	while ((de = readdir(dp)) != NULL) {
-		struct stat st;
-		memset(&st, 0, sizeof(st));
-		st.st_ino = de->d_ino;
-		st.st_mode = de->d_type << 12;
-		if (filler(buf, de->d_name, &st, 0))
-			break;
-	}
+    while ((de = readdir(dp)) != NULL) {
+        struct stat st;
+        memset(&st, 0, sizeof(st));
+        st.st_ino = de->d_ino;
+        st.st_mode = de->d_type << 12;
+        if (filler(buf, de->d_name, &st, 0))
+            break;
+    }
 
-	closedir(dp);
-	return 0;
+    closedir(dp);
+    return 0;
 }
 
 static int dfs_mknod(const char *path, mode_t mode, dev_t rdev) {
-	int res;
+    int res;
 
-	if (S_ISREG(mode)) {
-		res = open(path, O_CREAT | O_EXCL | O_WRONLY, mode);
-		if (res >= 0)
-			res = close(res);
-	} else if (S_ISFIFO(mode))
-		res = mkfifo(path, mode);
-	else
-		res = mknod(path, mode, rdev); // For Linux systems, this is sufficient
-	if (res == -1)
-		return -errno;
+    if (S_ISREG(mode)) {
+        res = open(path, O_CREAT | O_EXCL | O_WRONLY, mode);
+        if (res >= 0)
+            res = close(res);
+    } else if (S_ISFIFO(mode))
+        res = mkfifo(path, mode);
+    else
+        res = mknod(path, mode, rdev); // For Linux systems, this is sufficient
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_mkdir(const char *path, mode_t mode) {
-	int res;
+    int res;
 
-	res = mkdir(path, mode);
-	if (res == -1)
-		return -errno;
+    res = mkdir(path, mode);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_unlink(const char *path) {
-	int res;
+    int res;
 
-	res = unlink(path);
-	if (res == -1)
-		return -errno;
+    res = unlink(path);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_rmdir(const char *path) {
-	int res;
+    int res;
 
-	res = rmdir(path);
-	if (res == -1)
-		return -errno;
+    res = rmdir(path);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_symlink(const char *from, const char *to) {
-	int res;
+    int res;
 
-	res = symlink(from, to);
-	if (res == -1)
-		return -errno;
+    res = symlink(from, to);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_rename(const char *from, const char *to) {
-	int res;
+    int res;
 
-	res = rename(from, to);
-	if (res == -1)
-		return -errno;
+    res = rename(from, to);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_link(const char *from, const char *to) {
-	int res;
+    int res;
 
-	res = link(from, to);
-	if (res == -1)
-		return -errno;
+    res = link(from, to);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_chmod(const char *path, mode_t mode) {
-	int res;
+    int res;
 
-	res = chmod(path, mode);
-	if (res == -1)
-		return -errno;
+    res = chmod(path, mode);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_chown(const char *path, uid_t uid, gid_t gid) {
-	int res;
+    int res;
 
-	res = lchown(path, uid, gid);
-	if (res == -1)
-		return -errno;
+    res = lchown(path, uid, gid);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_truncate(const char *path, off_t size) {
-	int res;
+    int res;
 
-	res = truncate(path, size);
-	if (res == -1)
-		return -errno;
+    res = truncate(path, size);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 #ifdef HAVE_UTIMENSAT
 static int dfs_utimens(const char *path, const struct timespec ts[2]) {
-	int res;
+    int res;
 
-	// Apparently, utime/utimes follow symlinks.
-	res = utimensat(0, path, ts, AT_SYMLINK_NOFOLLOW);
-	if (res == -1)
-		return -errno;
+    // Apparently, utime/utimes follow symlinks.
+    res = utimensat(0, path, ts, AT_SYMLINK_NOFOLLOW);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 #endif
 
 static int dfs_open(const char *path, struct fuse_file_info *fi) {
-	int res;
+    int res;
 
-	res = open(path, fi->flags);
-	if (res == -1)
-		return -errno;
+    res = open(path, fi->flags);
+    if (res == -1)
+        return -errno;
 
-	close(res);
-	return 0;
+    close(res);
+    return 0;
 }
 
 static int dfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
 
 }
 
-static int dfs_write(const char *path, const char *buf, size_t size,off_t offset, struct fuse_file_info *fi) {
+static int dfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
 
 }
 
-static int dfs_statfs(const char *path, struct statvfs *stbuf)
-{
-	int res;
+static int dfs_statfs(const char *path, struct statvfs *stbuf) {
+    int res;
 
-	res = statvfs(path, stbuf);
-	if (res == -1)
-		return -errno;
+    res = statvfs(path, stbuf);
+    if (res == -1)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 static int dfs_release(const char *path, struct fuse_file_info *fi) {
-	// Just a stub.	 This method is optional and can safely be left unimplemented.
+    // Just a stub.	 This method is optional and can safely be left unimplemented.
 
-	(void) path;
-	(void) fi;
-	return 0;
+    (void) path;
+    (void) fi;
+    return 0;
 }
 
 static int dfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi) {
-	// Just a stub.	 This method is optional and can safely be left unimplemented.
+    // Just a stub.	 This method is optional and can safely be left unimplemented.
 
-	(void) path;
-	(void) isdatasync;
-	(void) fi;
-	return 0;
+    (void) path;
+    (void) isdatasync;
+    (void) fi;
+    return 0;
 }
 
 #ifdef HAVE_POSIX_FALLOCATE
 static int dfs_fallocate(const char *path, int mode, off_t offset, off_t length, struct fuse_file_info *fi) {
-	int fd;
-	int res;
+    int fd;
+    int res;
 
-	(void) fi;
+    (void) fi;
 
-	if (mode)
-		return -EOPNOTSUPP;
+    if (mode)
+        return -EOPNOTSUPP;
 
-	fd = open(path, O_WRONLY);
-	if (fd == -1)
-		return -errno;
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+        return -errno;
 
-	res = -posix_fallocate(fd, offset, length);
+    res = -posix_fallocate(fd, offset, length);
 
-	close(fd);
-	return res;
+    close(fd);
+    return res;
 }
 #endif
 
 #ifdef HAVE_SETXATTR
 /* xattr operations are optional and can safely be left unimplemented */
 static int dfs_setxattr(const char *path, const char *name, const char *value, size_t size, int flags) {
-	int res = lsetxattr(path, name, value, size, flags);
-	if (res == -1)
-		return -errno;
-	return 0;
+    int res = lsetxattr(path, name, value, size, flags);
+    if (res == -1)
+        return -errno;
+    return 0;
 }
 
 static int dfs_getxattr(const char *path, const char *name, char *value, size_t size) {
-	int res = lgetxattr(path, name, value, size);
-	if (res == -1)
-		return -errno;
-	return res;
+    int res = lgetxattr(path, name, value, size);
+    if (res == -1)
+        return -errno;
+    return res;
 }
 
 static int dfs_listxattr(const char *path, char *list, size_t size) {
-	int res = llistxattr(path, list, size);
-	if (res == -1)
-		return -errno;
-	return res;
+    int res = llistxattr(path, list, size);
+    if (res == -1)
+        return -errno;
+    return res;
 }
 
 static int dfs_removexattr(const char *path, const char *name) {
-	int res = lremovexattr(path, name);
-	if (res == -1)
-		return -errno;
-	return 0;
+    int res = lremovexattr(path, name);
+    if (res == -1)
+        return -errno;
+    return 0;
 }
 #endif /* HAVE_SETXATTR */
 
 static struct fuse_operations dfs_oper = {
-	.getattr	= dfs_getattr,
-	.access		= dfs_access,
-	.readlink	= dfs_readlink,
-	.readdir	= dfs_readdir,
-	.mknod		= dfs_mknod,
-	.mkdir		= dfs_mkdir,
-	.symlink	= dfs_symlink,
-	.unlink		= dfs_unlink,
-	.rmdir		= dfs_rmdir,
-	.rename		= dfs_rename,
-	.link		= dfs_link,
-	.chmod		= dfs_chmod,
-	.chown		= dfs_chown,
-	.truncate	= dfs_truncate,
+        .getattr    = dfs_getattr,
+        .access        = dfs_access,
+        .readlink    = dfs_readlink,
+        .readdir    = dfs_readdir,
+        .mknod        = dfs_mknod,
+        .mkdir        = dfs_mkdir,
+        .symlink    = dfs_symlink,
+        .unlink        = dfs_unlink,
+        .rmdir        = dfs_rmdir,
+        .rename        = dfs_rename,
+        .link        = dfs_link,
+        .chmod        = dfs_chmod,
+        .chown        = dfs_chown,
+        .truncate    = dfs_truncate,
 #ifdef HAVE_UTIMENSAT
-	.utimens	= dfs_utimens,
+        .utimens	= dfs_utimens,
 #endif
-	.open		= dfs_open,
-	.read		= dfs_read,
-	.write		= dfs_write,
-	.statfs		= dfs_statfs,
-	.release	= dfs_release,
-	.fsync		= dfs_fsync,
+        .open        = dfs_open,
+        .read        = dfs_read,
+        .write        = dfs_write,
+        .statfs        = dfs_statfs,
+        .release    = dfs_release,
+        .fsync        = dfs_fsync,
 #ifdef HAVE_POSIX_FALLOCATE
-	.fallocate	= dfs_fallocate,
+        .fallocate	= dfs_fallocate,
 #endif
 #ifdef HAVE_SETXATTR
-	.setxattr	= dfs_setxattr,
-	.getxattr	= dfs_getxattr,
-	.listxattr	= dfs_listxattr,
-	.removexattr	= dfs_removexattr,
+.setxattr	= dfs_setxattr,
+.getxattr	= dfs_getxattr,
+.listxattr	= dfs_listxattr,
+.removexattr	= dfs_removexattr,
 #endif
 };
 
 int main(int argc, char *argv[]) {
-  umask(0);
+    struct dfs_state *dfs_data;
 
-  if (argc < 3) {
-    dfs_usage();
-    exit(1);
-  }
-  else if (strlen(argv[2]) != DUMMY_FILES) {
-    dfs_usage();
-    exit(1);
-  }
-  else {
-    strncpy(dfs_key, argv[2], DUMMY_FILES);
-    fprintf(stdout, "Using key: %s\n", dfs_key);
-    argc = argc - 1;
+    printf("FUSE library version %d.%d\n", FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
 
-	  return fuse_main(argc, argv, &dfs_oper, NULL);
-  }
+    if ((argc < 6) || (argv[argc - 5][0] == '-') || (argv[argc - 4][0] == '-') || (argv[argc - 3][0] == '-') ||
+        (argv[argc - 2][0] == '-')) {
+        dfs_usage();
+        abort();
+    }
+
+    // Initializing File system state
+    dfs_data = malloc(sizeof(struct dfs_state));
+    if (dfs_data == NULL) {
+        perror("dfs_main: DFS_State allocation failed\n");
+        abort();
+    }
+    dfs_data->passphrase = argv[argc - 5];
+    dfs_data->root_directory = realpath(argv[argc - 4], NULL);
+    dfs_data->mount_point = realpath(argv[argc - 3], NULL);
+    dfs_data->db_file = malloc(PATH_MAX);
+    strncpy(dfs_data->db_file, dfs_data->mount_point, PATH_MAX);
+    strncat(dfs_data->db_file, argv[argc - 2], PATH_MAX);
+    dfs_data->innocent_file = realpath(argv[argc - 1], NULL);
+
+    printf("Passphrase: %s\nRoot Directory: %s\nMount Point: %s\nDFS DB File: %s\nDFS Innocent File: %s\n",
+           dfs_data->passphrase, dfs_data->root_directory, dfs_data->mount_point, dfs_data->db_file,
+           dfs_data->innocent_file);
+
+    // FUSE arguements
+    argv[argc - 5] = argv[argc - 3];
+    argv[argc - 4] = NULL;
+    argv[argc - 3] = NULL;
+    argv[argc - 2] = NULL;
+    argv[argc - 1] = NULL;
+    argc = argc - 4;
+
+    return fuse_main(argc, argv, &dfs_oper, dfs_data);
 }
