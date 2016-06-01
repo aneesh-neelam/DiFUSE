@@ -36,3 +36,7 @@ bin/difuse
 *.aux
 *.log
 *.synctex.gz
+
+# IDEA
+.idea/
+CMakeLists.txt
