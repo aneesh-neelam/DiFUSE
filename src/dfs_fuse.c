@@ -32,6 +32,7 @@
 
 #include <fuse.h>
 #include <db.h>
+#include <openssl/sha.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -130,8 +131,7 @@ off_t get_offset(int inode) {
     return offset;
 }
 
-int set_offset(int offset, int inode) {
-    off_t offset = 0;
+int set_offset(off_t offset, int inode) {
     u_int32_t flags;
     int dbstatus;
 
@@ -154,7 +154,7 @@ int set_offset(int offset, int inode) {
         dbp->close(dbp, 0);
     }
 
-    return offset;
+    return 0;
 }
 
 off_t get_dboffset(char *passphrase) {
