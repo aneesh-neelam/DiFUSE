@@ -46,6 +46,7 @@
 #include <sys/xattr.h>
 #endif
 
+#define PATH_MAX 256
 
 // Helper functions and data structures for the Dissident File System
 
@@ -57,6 +58,8 @@ struct dfs_state {
     char *db_file;
     char *innocent_file;
 };
+
+DB *dbp; // BerkeleyDB structure handle
 
 // Easy way to access file system state
 #define DFS_DATA ((struct dfs_state *) fuse_get_context()->private_data)
@@ -90,8 +93,75 @@ int generate_csprn() {
     }
 }
 
-int dfs_xor(char **srcs, size_t size) {
+int dfs_xor(const char *src1, const char *src2, char *dest, size_t size) {
+    size_t i;
 
+    for (i = 0; i < size; ++i) {
+        dest[i] = src1[i] ^ src2[i];
+    }
+
+    return 0;
+}
+
+off_t get_offset(int inode) {
+    off_t offset = 0;
+    u_int32_t flags;
+    int dbstatus;
+
+    flags = DB_RDONLY;
+
+    dbstatus = dbp->open(dbp,
+                         NULL,
+                         DFS_DATA->db_file,
+                         NULL,
+                         DB_BTREE,
+                         flags,
+                         0);
+
+    if (dbstatus != 0) {
+        perror("dfs_getoffset: DB open failed\n");
+        return -1;
+    }
+
+    if (dbp != NULL) {
+        dbp->close(dbp, 0);
+    }
+
+    return offset;
+}
+
+int set_offset(int offset, int inode) {
+    off_t offset = 0;
+    u_int32_t flags;
+    int dbstatus;
+
+    flags = DB_CREATE;
+
+    dbstatus = dbp->open(dbp,
+                         NULL,
+                         DFS_DATA->db_file,
+                         NULL,
+                         DB_BTREE,
+                         flags,
+                         0);
+
+    if (dbstatus != 0) {
+        perror("dfs_getoffset: DB open failed\n");
+        return -1;
+    }
+
+    if (dbp != NULL) {
+        dbp->close(dbp, 0);
+    }
+
+    return offset;
+}
+
+off_t get_dboffset(char *passphrase) {
+    size_t length = sizeof(passphrase);
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    SHA1(passphrase, length, hash);
+    return hash[0];
 }
 
 void dfs_usage() {
@@ -288,11 +358,74 @@ static int dfs_open(const char *path, struct fuse_file_info *fi) {
 }
 
 static int dfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    int fd, innocentfd;
+    int res, innocentres;
+    off_t innocentoffset;
 
+    char *sensitivebuf;
+    char *innocentbuf;
+
+    innocentoffset = get_dboffset(DFS_DATA->passphrase);
+
+    (void) fi;
+    fd = open(path, O_RDONLY);
+    innocentfd = open(DFS_DATA->innocent_file, O_RDONLY);
+    if (fd == -1 || innocentfd == -1)
+        return -errno;
+
+    sensitivebuf = (char *) malloc(size);
+    innocentbuf = (char *) malloc(size);
+
+    innocentres = pread(innocentfd, innocentbuf, size, innocentoffset + offset);
+    res = pread(fd, sensitivebuf, size, offset);
+    if (res == -1 || innocentres == -1)
+        return -errno;
+
+    dfs_xor(sensitivebuf, innocentbuf, buf, size);
+
+    free(sensitivebuf);
+    free(innocentbuf);
+    close(fd);
+    close(innocentfd);
+
+    return res;
 }
 
 static int dfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    int fd, innocentfd;
+    int res, innocentres;
+    off_t innocentoffset;
 
+    char *resultantbuf;
+    char *innocentbuf;
+
+    innocentoffset = get_dboffset(DFS_DATA->passphrase);
+
+    (void) fi;
+    fd = open(path, O_WRONLY);
+    innocentfd = open(DFS_DATA->innocent_file, O_RDONLY);
+    if (fd == -1 || innocentfd == -1)
+        return -errno;
+
+    resultantbuf = (char *) malloc(size);
+    innocentbuf = (char *) malloc(size);
+
+    innocentres = pread(innocentfd, innocentbuf, size, innocentoffset + offset);
+    if (innocentres == -1)
+        return -errno;
+
+    dfs_xor(buf, innocentbuf, resultantbuf, size);
+
+    res = pwrite(fd, resultantbuf, size, offset);
+    if (res == -1)
+        res = -errno;
+
+    free(resultantbuf);
+    free(innocentbuf);
+    close(fd);
+    close(innocentfd);
+
+    return res;
 }
 
 static int dfs_statfs(const char *path, struct statvfs *stbuf) {
@@ -411,6 +544,7 @@ static struct fuse_operations dfs_oper = {
 
 int main(int argc, char *argv[]) {
     struct dfs_state *dfs_data;
+    int dbstatus;
 
     printf("FUSE library version %d.%d\n", FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
 
@@ -437,6 +571,13 @@ int main(int argc, char *argv[]) {
     printf("Passphrase: %s\nRoot Directory: %s\nMount Point: %s\nDFS DB File: %s\nDFS Innocent File: %s\n",
            dfs_data->passphrase, dfs_data->root_directory, dfs_data->mount_point, dfs_data->db_file,
            dfs_data->innocent_file);
+
+
+    dbstatus = db_create(&dbp, NULL, 0);
+    if (dbstatus != 0) {
+        perror("dfs_main: DB init failed\n");
+        abort();
+    }
 
     // FUSE arguements
     argv[argc - 5] = argv[argc - 3];
