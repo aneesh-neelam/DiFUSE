@@ -418,7 +418,7 @@ static int dfs_write(const char *path, const char *buf, size_t size, off_t offse
 
     res = pwrite(fd, resultantbuf, size, offset);
     if (res == -1)
-        res = -errno;
+        return -errno;
 
     free(resultantbuf);
     free(innocentbuf);
