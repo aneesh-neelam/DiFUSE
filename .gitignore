@@ -28,6 +28,7 @@
 *.x86_64
 *.hex
 bin/difuse
+!bin/benchmark.sh
 
 # Debug files
 *.dSYM/
