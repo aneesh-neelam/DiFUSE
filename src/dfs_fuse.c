@@ -104,13 +104,33 @@ int dfs_xor(const char *src1, const char *src2, char *dest, size_t size) {
     return 0;
 }
 
-off_t get_offset(int inode) {
-    off_t offset = 0;
+int init_db(const char *native_db_file) {
     u_int32_t flags;
     int dbstatus;
 
-    flags = DB_RDONLY;
+    flags = DB_CREATE;
+    dbstatus = dbp->open(dbp,
+                         NULL,
+                         native_db_file,
+                         NULL,
+                         DB_BTREE,
+                         flags,
+                         0);
 
+    if (dbp != NULL) {
+        dbp->close(dbp, 0);
+    }
+
+    return dbstatus;
+}
+
+off_t get_offset(ino_t inode) {
+    off_t offset = -1;
+    u_int32_t flags;
+    int dbstatus;
+    DBT key, data;
+
+    flags = DB_RDONLY;
     dbstatus = dbp->open(dbp,
                          NULL,
                          DFS_DATA->db_file,
@@ -118,9 +138,29 @@ off_t get_offset(int inode) {
                          DB_BTREE,
                          flags,
                          0);
-
     if (dbstatus != 0) {
         perror("dfs_getoffset: DB open failed\n");
+        if (dbp != NULL) {
+            dbp->close(dbp, 0);
+        }
+        return -1;
+    }
+
+    memset(&key, 0, sizeof(DBT));
+    memset(&data, 0, sizeof(DBT));
+
+    key.data = &inode;
+    key.size = sizeof(ino_t);
+    data.data = &offset;
+    data.ulen = sizeof(off_t);
+    data.flags = DB_DBT_USERMEM;
+
+    dbstatus = dbp->get(dbp, NULL, &key, &data, 0);
+    if (dbstatus != 0) {
+        perror("dfs_getoffset: DB get failed\n");
+        if (dbp != NULL) {
+            dbp->close(dbp, 0);
+        }
         return -1;
     }
 
@@ -131,12 +171,13 @@ off_t get_offset(int inode) {
     return offset;
 }
 
-int set_offset(off_t offset, int inode) {
+off_t set_offset(ino_t inode) {
+    off_t offset = -1;
     u_int32_t flags;
     int dbstatus;
+    DBT key, data;
 
     flags = DB_CREATE;
-
     dbstatus = dbp->open(dbp,
                          NULL,
                          DFS_DATA->db_file,
@@ -150,17 +191,45 @@ int set_offset(off_t offset, int inode) {
         return -1;
     }
 
+    memset(&key, 0, sizeof(DBT));
+    memset(&data, 0, sizeof(DBT));
+    key.data = &inode;
+    key.size = sizeof(ino_t);
+    data.data = &offset;
+    data.ulen = sizeof(off_t);
+    data.flags = DB_DBT_USERMEM;
+
+    dbstatus = dbp->get(dbp, NULL, &key, &data, 0);
+
+    if (dbstatus == 0) {
+        perror("dfs_getoffset: DB get failed\n");
+        offset = -1;
+    }
+    else if (dbstatus == DB_NOTFOUND) {
+        offset = generate_csprn();
+
+        memset(&data, 0, sizeof(DBT));
+        data.data = &offset;
+        data.size = sizeof(off_t);
+
+        dbstatus = dbp->put(dbp, NULL, &key, &data, 0);
+        if (dbstatus != 0) {
+            perror("dfs_getoffset: DB put failed\n");
+            offset = -1;
+        }
+    }
+
     if (dbp != NULL) {
         dbp->close(dbp, 0);
     }
 
-    return 0;
+    return offset;
 }
 
 off_t get_dboffset(char *passphrase) {
     size_t length = sizeof(passphrase);
-    unsigned char hash[SHA_DIGEST_LENGTH];
-    SHA1(passphrase, length, hash);
+    unsigned char hash[SHA512_DIGEST_LENGTH];
+    SHA512(passphrase, length, hash);
     return hash[0];
 }
 
@@ -359,13 +428,24 @@ static int dfs_open(const char *path, struct fuse_file_info *fi) {
 
 static int dfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
     int fd, innocentfd;
-    int res, innocentres;
+    int res, innocentres, dbres;
     off_t innocentoffset;
-
     char *sensitivebuf;
     char *innocentbuf;
+    struct stat pathstat;
+    struct stat dbstat;
 
-    innocentoffset = get_dboffset(DFS_DATA->passphrase);
+    res = stat(path, &pathstat);
+    dbres = stat(DFS_DATA->db_file, &dbstat);
+    if (res == -1 || dbres == -1)
+        return -errno;
+
+    if (pathstat.st_ino == dbstat.st_ino) {
+      innocentoffset = get_dboffset(DFS_DATA->passphrase);
+    }
+    else {
+      innocentoffset = get_offset(pathstat.st_ino);
+    }
 
     (void) fi;
     fd = open(path, O_RDONLY);
@@ -393,13 +473,24 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
 
 static int dfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
     int fd, innocentfd;
-    int res, innocentres;
+    int res, innocentres, dbres;
     off_t innocentoffset;
-
     char *resultantbuf;
     char *innocentbuf;
+    struct stat pathstat;
+    struct stat dbstat;
 
-    innocentoffset = get_dboffset(DFS_DATA->passphrase);
+    res = stat(path, &pathstat);
+    dbres = stat(DFS_DATA->db_file, &dbstat);
+    if (res == -1 || dbres == -1)
+        return -errno;
+
+    if (pathstat.st_ino == dbstat.st_ino) {
+      innocentoffset = get_dboffset(DFS_DATA->passphrase);
+    }
+    else {
+      innocentoffset = get_offset(pathstat.st_ino);
+    }
 
     (void) fi;
     fd = open(path, O_WRONLY);
@@ -575,7 +666,12 @@ int main(int argc, char *argv[]) {
 
     dbstatus = db_create(&dbp, NULL, 0);
     if (dbstatus != 0) {
-        perror("dfs_main: DB init failed\n");
+        perror("dfs_main: DB structure init failed\n");
+        abort();
+    }
+    dbstatus = init_db(realpath(argv[argc - 2], NULL));
+    if (dbstatus != 0) {
+        perror("dfs_main: DB file init failed\n");
         abort();
     }
 
