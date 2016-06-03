@@ -73,7 +73,7 @@ typedef struct RANDOM {
 RANDOM csprn = {.last = 600};
 
 // Generates random numbers
-int generate_csprn() {
+off_t generate_csprn() {
     if (csprn.last > 512) {
         if (csprn.data == NULL) {
             csprn.data = (char *) malloc(512);
@@ -84,14 +84,15 @@ int generate_csprn() {
         close(random_file);
 
         csprn.last = 0;
-
-        return csprn.data[csprn.last];
     }
     else {
         csprn.last++;
-
-        return csprn.data[csprn.last];
     }
+
+    if (csprn.data[csprn.last] < 0) {
+      csprn.data[csprn.last] *= -1;
+    }
+    return csprn.data[csprn.last];
 }
 
 int dfs_xor(const char *src1, const char *src2, char *dest, size_t size) {
@@ -124,7 +125,7 @@ int init_db(const char *native_db_file) {
     return dbstatus;
 }
 
-off_t get_offset(ino_t inode) {
+off_t get_offset(const char * path) {
     off_t offset = -1;
     u_int32_t flags;
     int dbstatus;
@@ -149,8 +150,8 @@ off_t get_offset(ino_t inode) {
     memset(&key, 0, sizeof(DBT));
     memset(&data, 0, sizeof(DBT));
 
-    key.data = &inode;
-    key.size = sizeof(ino_t);
+    key.data = path;
+    key.size = sizeof(path) + 1;
     data.data = &offset;
     data.ulen = sizeof(off_t);
     data.flags = DB_DBT_USERMEM;
@@ -171,7 +172,7 @@ off_t get_offset(ino_t inode) {
     return offset;
 }
 
-off_t set_offset(ino_t inode) {
+off_t set_offset(const char * path) {
     off_t offset = -1;
     u_int32_t flags;
     int dbstatus;
@@ -193,8 +194,8 @@ off_t set_offset(ino_t inode) {
 
     memset(&key, 0, sizeof(DBT));
     memset(&data, 0, sizeof(DBT));
-    key.data = &inode;
-    key.size = sizeof(ino_t);
+    key.data = path;
+    key.size = sizeof(path) + 1;
     data.data = &offset;
     data.ulen = sizeof(off_t);
     data.flags = DB_DBT_USERMEM;
@@ -435,6 +436,9 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
     struct stat pathstat;
     struct stat dbstat;
 
+    (void) fi;
+
+    /*
     res = stat(path, &pathstat);
     dbres = stat(DFS_DATA->db_file, &dbstat);
     if (res == -1 || dbres == -1)
@@ -444,10 +448,12 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
       innocentoffset = get_dboffset(DFS_DATA->passphrase);
     }
     else {
-      innocentoffset = get_offset(pathstat.st_ino);
+      innocentoffset = get_offset(path);
     }
+    */
+    
+    innocentoffset = get_dboffset(DFS_DATA->passphrase);
 
-    (void) fi;
     fd = open(path, O_RDONLY);
     innocentfd = open(DFS_DATA->innocent_file, O_RDONLY);
     if (fd == -1 || innocentfd == -1)
@@ -459,7 +465,7 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
     innocentres = pread(innocentfd, innocentbuf, size, innocentoffset + offset);
     res = pread(fd, sensitivebuf, size, offset);
     if (res == -1 || innocentres == -1)
-        return -errno;
+        res = -errno;
 
     dfs_xor(sensitivebuf, innocentbuf, buf, size);
 
@@ -480,22 +486,30 @@ static int dfs_write(const char *path, const char *buf, size_t size, off_t offse
     struct stat pathstat;
     struct stat dbstat;
 
+    (void) fi;
+
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+        return -errno;
+
+    /*
     res = stat(path, &pathstat);
     dbres = stat(DFS_DATA->db_file, &dbstat);
     if (res == -1 || dbres == -1)
         return -errno;
 
     if (pathstat.st_ino == dbstat.st_ino) {
-      innocentoffset = get_dboffset(DFS_DATA->passphrase);
+        innocentoffset = get_dboffset(DFS_DATA->passphrase);
     }
     else {
-      innocentoffset = get_offset(pathstat.st_ino);
+        innocentoffset = get_offset(pathstat.st_ino);
     }
+    */
 
-    (void) fi;
-    fd = open(path, O_WRONLY);
+    innocentoffset = get_dboffset(DFS_DATA->passphrase);
+
     innocentfd = open(DFS_DATA->innocent_file, O_RDONLY);
-    if (fd == -1 || innocentfd == -1)
+    if (innocentfd == -1)
         return -errno;
 
     resultantbuf = (char *) malloc(size);
@@ -509,7 +523,7 @@ static int dfs_write(const char *path, const char *buf, size_t size, off_t offse
 
     res = pwrite(fd, resultantbuf, size, offset);
     if (res == -1)
-        return -errno;
+        res = -errno;
 
     free(resultantbuf);
     free(innocentbuf);
@@ -626,10 +640,10 @@ static struct fuse_operations dfs_oper = {
         .fallocate	= dfs_fallocate,
 #endif
 #ifdef HAVE_SETXATTR
-.setxattr	= dfs_setxattr,
-.getxattr	= dfs_getxattr,
-.listxattr	= dfs_listxattr,
-.removexattr	= dfs_removexattr,
+        .setxattr	= dfs_setxattr,
+        .getxattr	= dfs_getxattr,
+        .listxattr	= dfs_listxattr,
+        .removexattr	= dfs_removexattr,
 #endif
 };
 
@@ -654,6 +668,7 @@ int main(int argc, char *argv[]) {
     dfs_data->passphrase = argv[argc - 5];
     dfs_data->root_directory = realpath(argv[argc - 4], NULL);
     dfs_data->mount_point = realpath(argv[argc - 3], NULL);
+    // dfs_data->db_file = realpath(argv[argc - 2], NULL);
     dfs_data->db_file = malloc(PATH_MAX);
     strncpy(dfs_data->db_file, dfs_data->mount_point, PATH_MAX);
     strncat(dfs_data->db_file, argv[argc - 2], PATH_MAX);
