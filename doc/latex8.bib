@@ -1,12 +1,12 @@
 %
 %  $Description: Dissident File System Bibliography$ 
 % 
-%  $Author: aneelam@ucsc.edu $ 
-%  $Date: 2016/03/13 16:03:00 $
+%  $Author: Aneesh Neelam $
+%  $Date: 2016/06/05 15:00:00 $
 %  $Revision: 1.0 $
 %
 
-@online{ex1,
+@online{fuse,
   author = {FUSE},
   title = {github.com/libfuse/libfuse},
   year = 2016,
@@ -14,7 +14,7 @@
   urldate = {2016-03-13}
 }
 
-@online{ex2,
+@online{gametheory,
   author = {Defuse.ca},
   title = {defuse.ca/truecrypt-plausible-deniability-useless-by-game-theory},
   year = 2013,
@@ -22,7 +22,7 @@
   urldate = {2016-03-13}
 }
 
-@online{ex3,
+@online{steg,
   author = {Gary C. Kessler},
   title = {An Overview of Steganography for the Computer Forensics Examiner},
   year = 2004,
@@ -30,7 +30,7 @@
   urldate = {2016-03-13}
 }
 
-@online{ex4,
+@online{disksym,
   author = {Symantec},
   title = {Whitepaper: How Whole Disk Encryption Works},
   year = 2010,
@@ -38,7 +38,7 @@
   urldate = {2016-03-13}
 }
 
-@online{ex5,
+@online{diskintel,
   author = {Intel},
   title = {Whitepaper: Disk Encryption in the Enterprise},
   year = 2010,
@@ -46,21 +46,23 @@
   urldate = {2016-03-13}
 }
 
-@online{ex6,
-  author = {Niels Ferguson},
-  title = {AES-CBC + Elephant diffuser: A Disk Encryption Algorithm for Windows Vista},
-  year = 2006
+@misc{diskwin,
+    author = {Niels Ferguson},
+    title = {AES-CBC + Elephant diffuser: A disk encryption algorithm for Windows Vista},
+    year = {2006}
 }
 
-@jurthesis{ex7,
-	Author = {J. Gotzfried and T. Muller},
-	Date-Added = {2016-03-13 22:36:23 +0000},
-	Date-Modified = {2016-03-13 22:50:47 +0000},
-	Organization = {Journal of Wireless Mobile Networks, Ubiquitous Computing, and Dependable Applications (JoWUA)},
-	Title = {Analysing Android's Full Disk Encryption Feature},
-	Year = {2014}}
+@article{androidenc,
+  title={Analysing Android's Full Disk Encryption Feature.},
+  author={G{\"o}tzfried, Johannes and M{\"u}ller, Tilo},
+  journal={JoWUA},
+  volume={5},
+  number={1},
+  pages={84--100},
+  year={2014}
+}
 
-@online{ex8,
+@online{intelaes,
   author = {Intel},
   title = {Whitepaper on Intel® Advanced
 Encryption Standard
@@ -69,27 +71,139 @@ Set},
   year = 2010
 }
 
-@online{ex9,
+@online{ibmefs,
   author = {IBM},
   title = {Understanding Encrypted File System (EFS)},
   year = 2008
 }
 
-@online{ex10,
-  author = {R. Anderson and R. Needham and Adi Shamir},
-  title = {The Steganographic File System},
-  year = 1998
+@inbook{stegfs,
+	Address = {Berlin, Heidelberg},
+	Author = {Anderson, Ross and Needham, Roger and Shamir, Adi},
+	Chapter = {The Steganographic File System},
+	Doi = {10.1007/3-540-49380-8_6},
+	Isbn = {978-3-540-49380-8},
+	Pages = {73--82},
+	Publisher = {Springer Berlin Heidelberg},
+	Title = {Information Hiding: Second International Workshop, IH'98 Portland, Oregon, USA, April 14--17, 1998 Proceedings},
+	Url = {http://dx.doi.org/10.1007/3-540-49380-8_6},
+	Year = {1998},
+	Bdsk-Url-1 = {http://dx.doi.org/10.1007/3-540-49380-8_6}
 }
 
-@online{ex11,
-  author = {Alexei Czeskis and David J. St. Hilaire and Karl Koscher and Steven D. Gribble and Tadayoshi Kohno and Bruce Schneier},
-  title = {Defeating Encrypted and Deniable File Systems: TrueCrypt v5.1a and the Case of the Tattling OS and Applications},
-  year = 2008
-}
+@inproceedings{truecrypt,
+ author = {Czeskis, Alexei and Hilaire, David J. St. and Koscher, Karl and Gribble, Steven D. and Kohno, Tadayoshi and Schneier, Bruce},
+ title = {Defeating Encrypted and Deniable File Systems: TrueCrypt V5.1a and the Case of the Tattling OS and Applications},
+ booktitle = {Proceedings of the 3rd Conference on Hot Topics in Security},
+ series = {HOTSEC'08},
+ year = {2008},
+ location = {San Jose, CA},
+ pages = {7:1--7:7},
+ articleno = {7},
+ numpages = {7},
+ url = {http://dl.acm.org/citation.cfm?id=1496671.1496678},
+ acmid = {1496678},
+ publisher = {USENIX Association},
+ address = {Berkeley, CA, USA},
+} 
 
-@online{ex12,
+@online{fifth,
   author = {Cornell},
   title = {An Overview of the Fifth Amendment},
   url = {https://www.law.cornell.edu/wex/fifth_amendment},
   urldate = {2016-03-13}
+}
+
+@inproceedings {rubberhose,
+  author = {Hristo Bojinov and Daniel Sanchez and Paul Reber and Dan Boneh and Patrick Lincoln},
+  title = {Neuroscience Meets Cryptography: Designing Crypto Primitives Secure Against Rubber Hose Attacks},
+  booktitle = {Presented as part of the 21st USENIX Security Symposium (USENIX Security 12)},
+  year = {2012},
+  isbn = {978-931971-95-9},
+  address = {Bellevue, WA},
+  pages = {129--141},
+  url = {https://www.usenix.org/conference/usenixsecurity12/technical-sessions/presentation/bojinov},
+  publisher = {USENIX},
+}
+
+@inproceedings{yarrow,
+  title={Yarrow-160: Notes on the design and analysis of the yarrow cryptographic pseudorandom number generator},
+  author={Kelsey, John and Schneier, Bruce and Ferguson, Niels},
+  booktitle={Selected Areas in Cryptography},
+  pages={13--33},
+  year={1999},
+  organization={Springer}
+}
+
+@book{fortuna,
+ author = {Ferguson, Niels and Schneier, Bruce},
+ title = {Practical Cryptography},
+ year = {2003},
+ isbn = {0471223573},
+ edition = {1},
+ publisher = {John Wiley \& Sons, Inc.},
+ address = {New York, NY, USA},
+}
+
+@book{Schneier:1995:ACP:212584,
+ author = {Schneier, Bruce},
+ title = {Applied Cryptography (2Nd Ed.): Protocols, Algorithms, and Source Code in C},
+ year = {1995},
+ isbn = {0-471-11709-9},
+ publisher = {John Wiley \& Sons, Inc.},
+ address = {New York, NY, USA},
+}
+
+@online{linuxrandom,
+  author = {Ts'o, Theodore},
+  title = {random. c - Linux kernel random number generator.},
+  url = "https://git.kernel.org/cgit/linux/kernel/git/stable/linux-stable.git/tree/drivers/char/random.c?id=refs/tags/v3.15.6#n52",
+}
+
+@inproceedings{berkeleydb,
+ author = {Olson, Michael A. and Bostic, Keith and Seltzer, Margo},
+ title = {Berkeley DB},
+ booktitle = {Proceedings of the Annual Conference on USENIX Annual Technical Conference},
+ series = {ATEC '99},
+ year = {1999},
+ location = {Monterey, California},
+ pages = {43--43},
+ numpages = {1},
+ url = {http://dl.acm.org/citation.cfm?id=1268708.1268751},
+ acmid = {1268751},
+ publisher = {USENIX Association},
+ address = {Berkeley, CA, USA},
+}
+
+@book{astmos,
+ author = {Tanenbaum, Andrew S.},
+ title = {Modern Operating Systems},
+ year = {2007},
+ isbn = {9780136006633},
+ edition = {3rd},
+ publisher = {Prentice Hall Press},
+ address = {Upper Saddle River, NJ, USA},
+}
+
+@article{compression,
+  title={Introduction to data compression},
+  author={Blelloch, Guy E},
+  journal={Computer Science Department, Carnegie Mellon University},
+  year={2001}
+}
+
+@misc{badblocks,
+  title={Method and system for managing bad areas in flash memory},
+  author={Garvin, P.K. and Stanard, H.D.},
+  url={https://www.google.com/patents/US6260156},
+  year={2001},
+  month=jul # "~10",
+  publisher={Google Patents},
+  note={US Patent 6,260,156}
+}
+
+@online{bonnie,
+  author = {Coker, Russell},
+  title = {Bonnie++},
+  url = "http://www.coker.com.au/bonnie++/",
 }
