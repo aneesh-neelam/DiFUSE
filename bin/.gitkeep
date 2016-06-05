@@ -1,2 +1,0 @@
-This file simply forces Git to track this directory.
-Necessary because Git does not track empty directories.
