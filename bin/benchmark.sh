@@ -34,11 +34,11 @@ rm ${NATIVE_BENCHMARK_DIR}/testfile
 for ((n=0;n<10;n++));
 do
 echo "Native Bonnie++"
-   /usr/local/Cellar/bonnie++/1.97/sbin/bonnie++ -r 3072 -d ${NATIVE_BENCHMARK_DIR}
+   bonnie++ -r 3072 -d ${NATIVE_BENCHMARK_DIR}
 done
 
 for ((n=0;n<10;n++));
 do
 echo "DiFUSE Bonnie++"
-   /usr/local/Cellar/bonnie++/1.97/sbin/bonnie++ -r 3072 -d ${DIFUSE_BENCHMARK_DIR}
+   bonnie++ -r 3072 -d ${DIFUSE_BENCHMARK_DIR}
 done

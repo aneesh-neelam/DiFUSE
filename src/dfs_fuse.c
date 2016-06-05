@@ -1,5 +1,5 @@
 /*
- *  Dissident File System (DFS)
+ *  DiFUSE: A Dissident File System
  *  Copyright (C) 2016  Aneesh Neelam <neelam.aneesh@gmail.com & aneelam@ucsc.edu>
  *
  *  This file is part of the Dissident File System (DFS).
@@ -125,7 +125,7 @@ int init_db(const char *native_db_file) {
     return dbstatus;
 }
 
-off_t get_offset(const char * path) {
+off_t get_offset(ino_t inode) {
     off_t offset = -1;
     u_int32_t flags;
     int dbstatus;
@@ -150,8 +150,8 @@ off_t get_offset(const char * path) {
     memset(&key, 0, sizeof(DBT));
     memset(&data, 0, sizeof(DBT));
 
-    key.data = path;
-    key.size = sizeof(path) + 1;
+    key.data = &inode;
+    key.size = sizeof(ino_t);
     data.data = &offset;
     data.ulen = sizeof(off_t);
     data.flags = DB_DBT_USERMEM;
@@ -172,7 +172,7 @@ off_t get_offset(const char * path) {
     return offset;
 }
 
-off_t set_offset(const char * path) {
+off_t set_offset(ino_t inode) {
     off_t offset = -1;
     u_int32_t flags;
     int dbstatus;
@@ -194,8 +194,8 @@ off_t set_offset(const char * path) {
 
     memset(&key, 0, sizeof(DBT));
     memset(&data, 0, sizeof(DBT));
-    key.data = path;
-    key.size = sizeof(path) + 1;
+    key.data = &inode;
+    key.size = sizeof(ino_t);
     data.data = &offset;
     data.ulen = sizeof(off_t);
     data.flags = DB_DBT_USERMEM;
@@ -438,7 +438,6 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
 
     (void) fi;
 
-    /*
     res = stat(path, &pathstat);
     dbres = stat(DFS_DATA->db_file, &dbstat);
     if (res == -1 || dbres == -1)
@@ -448,11 +447,10 @@ static int dfs_read(const char *path, char *buf, size_t size, off_t offset, stru
       innocentoffset = get_dboffset(DFS_DATA->passphrase);
     }
     else {
-      innocentoffset = get_offset(path);
+      innocentoffset = get_offset(pathstat.st_ino);
     }
-    */
-    
-    innocentoffset = get_dboffset(DFS_DATA->passphrase);
+
+    // innocentoffset = get_dboffset(DFS_DATA->passphrase);
 
     fd = open(path, O_RDONLY);
     innocentfd = open(DFS_DATA->innocent_file, O_RDONLY);
@@ -492,7 +490,6 @@ static int dfs_write(const char *path, const char *buf, size_t size, off_t offse
     if (fd == -1)
         return -errno;
 
-    /*
     res = stat(path, &pathstat);
     dbres = stat(DFS_DATA->db_file, &dbstat);
     if (res == -1 || dbres == -1)
@@ -504,9 +501,8 @@ static int dfs_write(const char *path, const char *buf, size_t size, off_t offse
     else {
         innocentoffset = get_offset(pathstat.st_ino);
     }
-    */
 
-    innocentoffset = get_dboffset(DFS_DATA->passphrase);
+    // innocentoffset = get_dboffset(DFS_DATA->passphrase);
 
     innocentfd = open(DFS_DATA->innocent_file, O_RDONLY);
     if (innocentfd == -1)
@@ -649,7 +645,7 @@ static struct fuse_operations dfs_oper = {
 
 int main(int argc, char *argv[]) {
     struct dfs_state *dfs_data;
-    int dbstatus;
+    int dbstatus, fusestatus;
 
     printf("FUSE library version %d.%d\n", FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
 
@@ -684,11 +680,6 @@ int main(int argc, char *argv[]) {
         perror("dfs_main: DB structure init failed\n");
         abort();
     }
-    dbstatus = init_db(realpath(argv[argc - 2], NULL));
-    if (dbstatus != 0) {
-        perror("dfs_main: DB file init failed\n");
-        abort();
-    }
 
     // FUSE arguements
     argv[argc - 5] = argv[argc - 3];
@@ -698,5 +689,13 @@ int main(int argc, char *argv[]) {
     argv[argc - 1] = NULL;
     argc = argc - 4;
 
-    return fuse_main(argc, argv, &dfs_oper, dfs_data);
+    fusestatus = fuse_main(argc, argv, &dfs_oper, dfs_data);
+
+    dbstatus = init_db(realpath(argv[argc - 2], NULL));
+    if (dbstatus != 0) {
+        perror("dfs_main: DB file init failed\n");
+        abort();
+    }
+
+    return fusestatus;
 }
