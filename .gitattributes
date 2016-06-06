@@ -41,5 +41,7 @@
 *.out binary
 *.app binary
 
-# Documents
+# Documents and Images
 *.pdf binary
+*.xlsx binary
+*.png binary
